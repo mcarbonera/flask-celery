@@ -10,4 +10,4 @@ COPY . .
 ENV FLASK_APP=app.app
 ENV PYTHONPATH=/app
 
-CMD ["celery", "-A", "app.tasks", "worker", "--loglevel=INFO", "-Q", "duplicate_queue"]
+CMD ["celery", "-A", "app.tasks", "worker", "--loglevel=INFO", "-Q", "duplicate_queue", "--concurrency=1"]
