@@ -66,6 +66,9 @@ http://localhost:5000/update-album
 
 - Informar o token do github para que o gitlab consiga acessar o repositório.
 - Selecionar o projeto para importar.
+- Para que novos commits sejam propagados para o projeto gitlab, é necessário acessar:
+Configurações -> Repositório -> Espelhando repositórios. Adicionar um repositório espelhado (com URL do github).
+
 - Com o comando abaixo, rodar o Gitlab Runner, para executar a pipeline utilizando um container.
 
 ```
@@ -100,7 +103,7 @@ docker exec -it gitlab-ci-gitlab-runner-1 gitlab-runner register
 
 - Para o campo executor, utilizei "docker", para rodar o job em um container separado do gitlab-runner. Contudo, para essa abordagem funcionar, é necessário subir container docker a partir de outro container docker e isso para ser feito precisa de acesso ao docker socket, que não tem suporte no Windows. Para fazer semelhante no Windows, precisa chamar o docker via TCP, abordagem "nativa" demais, e ainda é considerado algo inseguro, mas fazer o que.
 
-- Para o campo default Docker Image, utilizei a imagem sonarsource/sonar-scanner-cli:latest (Tem que ser a imagem que roda o Job, não do gitlab-runner).
+- Para o campo default Docker Image, utilizei a imagem python:3.11.4-slim (Tem que ser a imagem que roda o Job, não do gitlab-runner).
 
 - A partir desse ponto, perceba que os logs de erro param de aparecer. Para verificar o funcionamento do gitlab runner por linha de comando:
 
