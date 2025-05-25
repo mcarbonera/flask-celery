@@ -1,0 +1,67 @@
+default:
+  image: python:3.11.4-slim
+
+stages:
+  - publish
+  - deploy
+
+variables:
+  DOCKER_HOST: tcp://host.docker.internal:2375
+  DOCKER_TLS_CERTDIR: ""
+
+# MARK: publish api_producer
+publish_api:
+  stage: publish
+  image: docker:28.1.1
+  tags:
+    - local
+  before_script:
+    - docker login -u "$CI_DOCKERHUB_USER" -p "$CI_DOCKERHUB_PASSWORD"
+  script:
+    - docker build --pull -t "${CI_DOCKERHUB_USER}/api-producer" -f api-producer/Dockerfile api-producer/
+    - docker push "${CI_DOCKERHUB_USER}/api-producer"
+  only:
+    - main
+
+# MARK: publish duplication_worker
+publish_duplication_worker:
+  stage: publish
+  image: docker:28.1.1
+  tags:
+    - local
+  before_script:
+    - docker login -u "$CI_DOCKERHUB_USER" -p "$CI_DOCKERHUB_PASSWORD"
+  script:
+    - docker build --pull -t "${CI_DOCKERHUB_USER}/duplication-worker" -f api-producer/celery_workers/Dockerfile-Duplication-Worker api-producer/
+    - docker push "${CI_DOCKERHUB_USER}/duplication-worker"
+  only:
+    - main
+
+# MARK: publish write_back_worker
+publish_write-back-worker:
+  stage: publish
+  image: docker:28.1.1
+  tags:
+    - local
+  before_script:
+    - docker login -u "$CI_DOCKERHUB_USER" -p "$CI_DOCKERHUB_PASSWORD"
+  script:
+    - docker build --pull -t "${CI_DOCKERHUB_USER}/write-back-worker" -f api-producer/celery_workers/Dockerfile-Write-Back-Worker api-producer/
+    - docker push "${CI_DOCKERHUB_USER}/write-back-worker"
+  only:
+    - main
+
+# MARK: Deploy K8s
+deploy_kubernetes:
+  stage: deploy
+  image:
+    name: bitnami/kubectl:latest
+    entrypoint: [""]
+  tags:
+    - local
+  before_script:
+    - kubectl config use-context mcarbonera/flask-celery:agente-severino-007
+  script:
+    - kubectl apply -f k8s-deploy/flask-celery-app.yaml
+  only:
+    - main

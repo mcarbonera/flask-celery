@@ -1,0 +1,97 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ufscar
+      RABBITMQ_DEFAULT_PASS: iti
+
+  redis:
+    image: redis:latest
+    expose:
+      - 6379
+    ports:
+      - 6379:6379
+
+  postgres:
+    image: postgres:latest
+    environment:
+      POSTGRES_DB: db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+    ports:
+      - 5432:5432
+    volumes:
+      - ./sql:/docker-entrypoint-initdb.d
+      - pg_data:/var/lib/postgresql/data
+
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - 8080:8080
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    environment:
+      REDIS_HOSTS: local:redis:6379:0
+      PORT: 8082
+    ports:
+      - 8082:8082
+
+  api-producer:
+    container_name: api-producer
+    build: api-producer
+    restart: on-failure
+    ports:
+      - "5000:5000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - RABBITMQ_USER=ufscar
+      - RABBITMQ_PASSWORD=iti
+      - POSTGRESDB_NAME=chinook
+      - POSTGRESDB_USER=user
+      - POSTGRESDB_PASS=pass
+    depends_on:
+      - rabbitmq
+      - redis
+      - postgres
+
+  db-duplication-worker:
+    container_name: duplication-worker
+    build:
+      context: api-producer
+      dockerfile: celery_workers/Dockerfile-Duplication-Worker
+    environment:
+      - PYTHONUNBUFFERED=1
+      - RABBITMQ_USER=ufscar
+      - RABBITMQ_PASSWORD=iti
+      - POSTGRESDB_NAME=chinook
+      - POSTGRESDB_USER=user
+      - POSTGRESDB_PASS=pass
+    depends_on:
+      - rabbitmq
+      - redis
+      - postgres
+
+  db-write-back-worker:
+    container_name: write-back-worker
+    build:
+      context: api-producer
+      dockerfile: celery_workers/Dockerfile-Write-Back-Worker
+    environment:
+      - PYTHONUNBUFFERED=1
+      - RABBITMQ_USER=ufscar
+      - RABBITMQ_PASSWORD=iti
+      - POSTGRESDB_NAME=chinook
+      - POSTGRESDB_USER=user
+      - POSTGRESDB_PASS=pass
+    depends_on:
+      - rabbitmq
+      - redis
+      - postgres
+
+volumes:
+  pg_data:

@@ -1,0 +1,9 @@
+services:
+
+  gitlab-runner:
+    image: 'gitlab/gitlab-runner:alpine'
+    environment:
+      - DOCKER_HOST=tcp://host.docker.internal:2375
+    volumes:
+      - ./data/gitlab-runner/config:/etc/gitlab-runner
+    restart: unless-stopped

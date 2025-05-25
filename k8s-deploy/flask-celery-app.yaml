@@ -1,0 +1,264 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: flask-celery-app
+---
+# MARK: RabbitMQ
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbitmq
+  namespace: flask-celery-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rabbitmq
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+    spec:
+      containers:
+      - name: rabbitmq
+        image: rabbitmq:3-management
+        env:
+        - name: RABBITMQ_DEFAULT_USER
+          value: "ufscar"
+        - name: RABBITMQ_DEFAULT_PASS
+          value: "iti"
+        ports:
+        - containerPort: 5672
+        - containerPort: 15672
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  namespace: flask-celery-app
+spec:
+  type: ClusterIP
+  selector:
+    app: rabbitmq
+  ports:
+  - name: amqp
+    port: 5672
+    targetPort: 5672
+  - name: management
+    port: 15672
+    targetPort: 15672
+---
+# MARK: Redis
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: flask-celery-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:latest
+        ports:
+        - containerPort: 6379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: flask-celery-app
+spec:
+  type: ClusterIP
+  selector:
+    app: redis
+  ports:
+  - port: 6379
+    targetPort: 6379
+---
+# MARK: PostgreSQL
+# Volume para os dados
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: flask-celery-app
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+# Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: flask-celery-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: mcarbonera/postgres:latest
+        imagePullPolicy: Never
+        env:
+        - name: POSTGRES_DB
+          value: "db"
+        - name: POSTGRES_USER
+          value: "user"
+        - name: POSTGRES_PASSWORD
+          value: "pass"
+        ports:
+        - containerPort: 5432
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+      volumes:
+      - name: postgres-storage
+        persistentVolumeClaim:
+          claimName: postgres-pvc
+---
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: flask-celery-app
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres
+  ports:
+  - port: 5432
+    targetPort: 5432
+---
+# MARK: Flask - API Producer
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-producer
+  namespace: flask-celery-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-producer
+  template:
+    metadata:
+      labels:
+        app: api-producer
+    spec:
+      containers:
+      - name: api-producer
+        image: mcarbonera/api-producer:latest
+        ports:
+        - containerPort: 5000
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        - name: RABBITMQ_USER
+          value: "ufscar"
+        - name: RABBITMQ_PASSWORD
+          value: "iti"
+        - name: POSTGRESDB_NAME
+          value: "chinook"
+        - name: POSTGRESDB_USER
+          value: "user"
+        - name: POSTGRESDB_PASS
+          value: "pass"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-producer
+  namespace: flask-celery-app
+spec:
+  type: LoadBalancer
+  selector:
+    app: api-producer
+  ports:
+  - port: 5000
+    targetPort: 5000
+---
+# MARK: Task - Duplication Worker
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: duplication-worker
+  namespace: flask-celery-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: duplication-worker
+  template:
+    metadata:
+      labels:
+        app: duplication-worker
+    spec:
+      containers:
+      - name: duplication-worker
+        image: mcarbonera/duplication-worker:latest
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        - name: RABBITMQ_USER
+          value: "ufscar"
+        - name: RABBITMQ_PASSWORD
+          value: "iti"
+        - name: POSTGRESDB_NAME
+          value: "chinook"
+        - name: POSTGRESDB_USER
+          value: "user"
+        - name: POSTGRESDB_PASS
+          value: "pass"
+---
+# MARK: Task Write-back Worker
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: write-back-worker
+  namespace: flask-celery-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: write-back-worker
+  template:
+    metadata:
+      labels:
+        app: write-back-worker
+    spec:
+      containers:
+      - name: write-back-worker
+        image: mcarbonera/write-back-worker:latest
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        - name: RABBITMQ_USER
+          value: "ufscar"
+        - name: RABBITMQ_PASSWORD
+          value: "iti"
+        - name: POSTGRESDB_NAME
+          value: "chinook"
+        - name: POSTGRESDB_USER
+          value: "user"
+        - name: POSTGRESDB_PASS
+          value: "pass"
